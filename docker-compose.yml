@@ -1,0 +1,47 @@
+version: '3.7'
+
+services:
+    mysql:
+        hostname: syncserver_mysql
+        image: mariadb:10.6
+        restart: on-failure:5
+        healthcheck:
+            test: ["CMD", "mysqladmin", "ping", "--silent", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+            timeout: 20s
+            retries: 10
+        environment:
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+            MYSQL_USER: ${MYSQL_USER}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+            MYSQL_DATABASE: ${MYSQL_DATABASE}
+        volumes:
+            - syncserver_mysql_data:/var/lib/mysql
+        networks:
+            - syncserver
+
+    app:
+        hostname: syncserver_app
+        image: mozilla/syncserver:latest
+        restart: on-failure:5
+        depends_on:
+            mysql:
+                condition: service_healthy
+        environment:
+            SYNCSERVER_PUBLIC_URL: ${SYNCSERVER_PUBLIC_URL}
+            SYNCSERVER_SECRET: ${SYNCSERVER_SECRET}
+            SYNCSERVER_SQLURI: "mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql/${MYSQL_DATABASE}"
+            SYNCSERVER_BATCH_UPLOAD_ENABLED: "true"
+            SYNCSERVER_FORCE_WSGI_ENVIRON: "false"
+            PORT: "${PORT}"
+        ports:
+            - 5000:${PORT}
+        networks:
+            - syncserver
+
+volumes:
+    syncserver_mysql_data:
+        name: syncserver_mysql_data
+
+networks:
+    syncserver:
+        name: syncserver
